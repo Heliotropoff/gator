@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"gator/internal/config"
 	"os"
+
+	_ "github.com/lib/pq"
 )
 
 func main() {
