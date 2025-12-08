@@ -1,10 +1,15 @@
 package main
 
 import (
+	"context"
+	"database/sql"
 	"fmt"
 	"gator/internal/config"
+	"gator/internal/database"
 	"os"
+	"time"
 
+	"github.com/google/uuid"
 	_ "github.com/lib/pq"
 )
 
@@ -15,13 +20,23 @@ func main() {
 		return
 
 	}
-	currentState := state{
-		Config: &cfg,
+	db, err := sql.Open("postgres", cfg.DbUrl)
+	if err != nil {
+		newErr := fmt.Errorf("error while connecting to DB: %w", err)
+		fmt.Println(newErr)
+		os.Exit(1)
 	}
+	dbQueries := database.New(db)
+	currentState := state{
+		db:     dbQueries,
+		config: &cfg,
+	}
+
 	currentCommands := commands{
 		supported: make(map[string]func(*state, command) error),
 	}
 	currentCommands.register("login", handlerLogin)
+	currentCommands.register("register", handlerRegister)
 	passed_args := os.Args
 	if len(passed_args) < 2 {
 		err := fmt.Errorf("no arguments were provided")
@@ -40,7 +55,8 @@ func main() {
 }
 
 type state struct {
-	Config *config.Config
+	db     *database.Queries
+	config *config.Config
 }
 
 type command struct {
@@ -52,12 +68,41 @@ func handlerLogin(s *state, cmd command) error {
 	if len(cmd.args) == 0 {
 		return fmt.Errorf("no username was provided")
 	}
-	userName := cmd.args[0]
-	if err := s.Config.SetUser(userName); err != nil {
+	userNameProvided := cmd.args[0]
+	user, err := s.db.GetUser(context.Background(), userNameProvided)
+	if err != nil {
+		errMsg := fmt.Errorf("problem retrieving user by the name %s, error: %w", userNameProvided, err)
+		return errMsg
+	}
+	if err := s.config.SetUser(user.Name); err != nil {
 		return err
 	}
-	fmt.Println(userName, " was set as current user name")
+	fmt.Println(user.Name, " was set as current user name")
 	return nil
+}
+
+func handlerRegister(s *state, cmd command) error {
+	if len(cmd.args) == 0 {
+		return fmt.Errorf("no username was provided")
+	}
+	uName := cmd.args[0]
+	DbArgs := database.CreateUserParams{
+		ID:        uuid.New(),
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+		Name:      uName,
+	}
+	usr, err := s.db.CreateUser(context.Background(), DbArgs)
+	if err != nil {
+		errMSG := fmt.Errorf("db error for adding user %s. error: %w", DbArgs.Name, err)
+		fmt.Println(errMSG)
+		os.Exit(1)
+	}
+	s.config.SetUser(usr.Name)
+	fmt.Println("New user was created")
+	fmt.Print(usr)
+	return nil
+
 }
 
 type commands struct {
