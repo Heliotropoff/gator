@@ -37,6 +37,7 @@ func main() {
 	}
 	currentCommands.register("login", handlerLogin)
 	currentCommands.register("register", handlerRegister)
+	currentCommands.register("reset", hanlderReset)
 	passed_args := os.Args
 	if len(passed_args) < 2 {
 		err := fmt.Errorf("no arguments were provided")
@@ -103,6 +104,15 @@ func handlerRegister(s *state, cmd command) error {
 	fmt.Print(usr)
 	return nil
 
+}
+
+func hanlderReset(s *state, cmd command) error {
+	if err := s.db.DeleteUsers(context.Background()); err != nil {
+		fmt.Println("reset was not successful")
+		return err
+	}
+	fmt.Println("reset was successful")
+	return nil
 }
 
 type commands struct {
