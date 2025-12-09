@@ -38,6 +38,7 @@ func main() {
 	currentCommands.register("login", handlerLogin)
 	currentCommands.register("register", handlerRegister)
 	currentCommands.register("reset", hanlderReset)
+	currentCommands.register("users", hanlderGetUsers)
 	passed_args := os.Args
 	if len(passed_args) < 2 {
 		err := fmt.Errorf("no arguments were provided")
@@ -112,6 +113,23 @@ func hanlderReset(s *state, cmd command) error {
 		return err
 	}
 	fmt.Println("reset was successful")
+	return nil
+}
+
+func hanlderGetUsers(s *state, cmd command) error {
+	users, err := s.db.GetUsers(context.Background())
+	if err != nil {
+		fmt.Println("error retrieving users from DB")
+		return err
+	}
+	currentUser := s.config.CurrentUsername
+	for _, user := range users {
+		if user == currentUser {
+			fmt.Printf("* %s (current)\n", user)
+		} else {
+			fmt.Printf("* %s\n", user)
+		}
+	}
 	return nil
 }
 
