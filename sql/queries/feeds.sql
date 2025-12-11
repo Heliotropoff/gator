@@ -6,3 +6,9 @@ VALUES(
     $3
 )
 RETURNING *;
+
+-- name: GetFeeds :many
+SELECT feeds.name, feeds.url, users.name from feeds
+INNER JOIN users
+ON
+feeds.user_id = users.id;
