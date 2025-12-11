@@ -39,6 +39,8 @@ func main() {
 	currentCommands.register("agg", handlerAgg)
 	currentCommands.register("addfeed", handlerAddFeed)
 	currentCommands.register("feeds", handlerFeeds)
+	currentCommands.register("follow", handlerFollow)
+	currentCommands.register("following", handlerFollowing)
 	passed_args := os.Args
 	if len(passed_args) < 2 {
 		err := fmt.Errorf("no arguments were provided")

@@ -21,6 +21,12 @@ type command struct {
 	args []string
 }
 
+type commands struct {
+	supported map[string]func(*state, command) error
+}
+
+// handlers
+
 func handlerLogin(s *state, cmd command) error {
 	if len(cmd.args) == 0 {
 		return fmt.Errorf("no username was provided")
@@ -106,6 +112,7 @@ func handlerAddFeed(s *state, cmd command) error {
 	name := cmd.args[0]
 	url := cmd.args[1]
 	new_feed := database.CreateFeedParams{
+		ID:     uuid.New(),
 		Name:   name,
 		Url:    url,
 		UserID: userData.ID,
@@ -115,6 +122,17 @@ func handlerAddFeed(s *state, cmd command) error {
 		return err
 	}
 	fmt.Println(f)
+	newFeedFollow := database.CreateFeedFollowParams{
+		ID:        uuid.New(),
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+		UserID:    userData.ID,
+		FeedID:    f.ID,
+	}
+	_, err = s.db.CreateFeedFollow(context.Background(), newFeedFollow)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -130,10 +148,44 @@ func handlerFeeds(s *state, cmd command) error {
 	return nil
 }
 
-type commands struct {
-	supported map[string]func(*state, command) error
+func handlerFollow(s *state, cmd command) error {
+	urlArg := cmd.args[0]
+	feed, err := s.db.GetFeedByURL(context.Background(), urlArg)
+	if err != nil {
+		return err
+	}
+	user, err := s.db.GetUser(context.Background(), s.config.CurrentUsername)
+	newFollowParams := database.CreateFeedFollowParams{
+		ID:        uuid.New(),
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+		UserID:    user.ID,
+		FeedID:    feed.ID,
+	}
+	newFollow, err := s.db.CreateFeedFollow(context.Background(), newFollowParams)
+	if err != nil {
+		return err
+	}
+	fmt.Println(newFollow)
+	return nil
 }
 
+func handlerFollowing(s *state, cmd command) error {
+	userData, err := s.db.GetUser(context.Background(), s.config.CurrentUsername)
+	if err != nil {
+		return err
+	}
+	feeds_followed, err := s.db.GetFeedFollowsForUser(context.Background(), userData.ID)
+	if err != nil {
+		return err
+	}
+	for _, feed := range feeds_followed {
+		fmt.Println(feed.Feedname)
+	}
+	return nil
+}
+
+// activation commands
 func (c *commands) run(s *state, cmd command) error {
 	if fn, ok := c.supported[cmd.name]; !ok {
 		return fmt.Errorf("command %s not supported", cmd.name)
