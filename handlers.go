@@ -2,13 +2,17 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"gator/internal/config"
 	"gator/internal/database"
+	"log"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 type state struct {
@@ -111,7 +115,10 @@ func handlerAgg(s *state, cmd command) error {
 	defer ticker.Stop()
 	fmt.Println("Collecting feeds every ", actual_time)
 	for ; ; <-ticker.C {
-		scrapeFeeds(s)
+		err = scrapeFeeds(s)
+		if err != nil {
+			log.Println(err)
+		}
 	}
 	return nil
 }
@@ -200,6 +207,44 @@ func handlerUnfollow(s *state, cmd command) error {
 	return nil
 }
 
+func handlerBrowse(s *state, cmd command) error {
+	var limitValue int32
+	if len(cmd.args) < 1 {
+		limitValue = 2
+	} else {
+		limN, err := strconv.Atoi(cmd.args[0])
+		if err != nil {
+			log.Printf("error in parsing numeric argument")
+			return err
+		}
+		limitValue = int32(limN)
+	}
+	//TODO: refactor to avoid two queries
+	userData, err := s.db.GetUser(context.Background(), s.config.CurrentUsername)
+	if err != nil {
+		return err
+	}
+	params := database.GetPostsForUserParams{
+		UserID: userData.ID,
+		Limit:  limitValue,
+	}
+	posts, err := s.db.GetPostsForUser(context.Background(), params)
+	if err != nil {
+		return err
+	}
+	if len(posts) < 1 {
+		fmt.Println("user has no posts from their feeds yet")
+	}
+	// TODO: escape html and format properly
+	for _, post := range posts {
+		fmt.Println("----------------------------------------------")
+		fmt.Println(post.Title)
+		fmt.Println(post.PublishedAt)
+		fmt.Println(post.Description)
+	}
+	return nil
+}
+
 // activation commands
 func (c *commands) run(s *state, cmd command) error {
 	if fn, ok := c.supported[cmd.name]; !ok {
@@ -222,13 +267,53 @@ func scrapeFeeds(s *state) error {
 	if err != nil {
 		return err
 	}
-	s.db.MarkFeedFetched(context.Background(), nextFeed.ID)
+	err = s.db.MarkFeedFetched(context.Background(), nextFeed.ID)
+	if err != nil {
+		return err
+	}
 	feed, err := fetchFeed(context.Background(), nextFeed.Url)
 	if err != nil {
 		return err
 	}
 	for _, item := range feed.Channel.Item {
-		fmt.Println(item.Title)
+		var parsedDate sql.NullTime
+		publicationDate, err := time.Parse(time.RFC1123Z, item.PubDate)
+		if err != nil {
+			parsedDate = sql.NullTime{
+				Valid: false}
+		} else {
+			parsedDate = sql.NullTime{
+				Time:  publicationDate,
+				Valid: true,
+			}
+		}
+		params := database.CreatePostParams{
+			ID:          uuid.New(),
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
+			Title:       item.Title,
+			Url:         item.Link,
+			Description: item.Description,
+			PublishedAt: parsedDate,
+			FeedID:      nextFeed.ID,
+		}
+		post, err := s.db.CreatePost(context.Background(), params)
+		if err != nil {
+			if pqErr, ok := err.(*pq.Error); ok {
+				if pqErr.Code == "23505" {
+					fmt.Printf("post with url %s already exists, ignoring", params.Url)
+					continue
+				}
+				errMSG := fmt.Errorf("error: %w", err)
+				fmt.Println(errMSG)
+				continue
+
+			}
+			errMSG := fmt.Errorf("error: %w", err)
+			fmt.Println(errMSG)
+			continue
+		}
+		fmt.Println(post.Title)
 	}
 
 	return nil

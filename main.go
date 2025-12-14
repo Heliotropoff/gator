@@ -42,6 +42,7 @@ func main() {
 	currentCommands.register("follow", middlewareLoggedIn(handlerFollow))
 	currentCommands.register("following", middlewareLoggedIn(handlerFollowing))
 	currentCommands.register("unfollow", handlerUnfollow)
+	currentCommands.register("browse", handlerBrowse)
 	passed_args := os.Args
 	if len(passed_args) < 2 {
 		err := fmt.Errorf("no arguments were provided")

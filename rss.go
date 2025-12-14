@@ -32,7 +32,7 @@ func fetchFeed(ctx context.Context, feedURL string) (*RSSFeed, error) {
 	client := http.Client{}
 	response, err := client.Do(request)
 	if err != nil {
-		return &RSSFeed{}, nil
+		return &RSSFeed{}, err
 	}
 	result := RSSFeed{}
 	feedData, err := io.ReadAll(response.Body)
