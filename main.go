@@ -37,10 +37,11 @@ func main() {
 	currentCommands.register("reset", hanlderReset)
 	currentCommands.register("users", hanlderGetUsers)
 	currentCommands.register("agg", handlerAgg)
-	currentCommands.register("addfeed", handlerAddFeed)
+	currentCommands.register("addfeed", middlewareLoggedIn(handlerAddFeed))
 	currentCommands.register("feeds", handlerFeeds)
-	currentCommands.register("follow", handlerFollow)
-	currentCommands.register("following", handlerFollowing)
+	currentCommands.register("follow", middlewareLoggedIn(handlerFollow))
+	currentCommands.register("following", middlewareLoggedIn(handlerFollowing))
+	currentCommands.register("unfollow", handlerUnfollow)
 	passed_args := os.Args
 	if len(passed_args) < 2 {
 		err := fmt.Errorf("no arguments were provided")
